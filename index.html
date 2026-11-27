@@ -201,6 +201,7 @@
 
   function render() {
     $('count').textContent = scanned.size;
+    $('send').disabled = scanned.size === 0;
     $('found').replaceChildren();
 
     scanned.forEach((method, code) => {
@@ -350,7 +351,59 @@ async function sendToRN5() {
     return;
   }
 
-  message('รอเชื่อมต่อระบบรับข้อมูล RN5');
+  const params = new URLSearchParams(
+    window.location.hash.slice(1)
+  );
+
+  const origin = params.get('origin');
+  const session = params.get('session');
+
+  if (!origin || !session ||
+      !window.opener || window.opener.closed) {
+    message(
+      'กรุณาเปิดหน้าสแกนจากระบบ RN5 โดยตรง',
+      true
+    );
+    return;
+  }
+
+  try {
+    const target = new URL(origin);
+
+    if (target.protocol !== 'https:' ||
+        !target.hostname.endsWith('.googleusercontent.com')) {
+      throw new Error('ต้นทาง RN5 ไม่ถูกต้อง');
+    }
+
+    if (running) {
+      await stopCamera();
+      if (running) return;
+    }
+
+    const codes = Array.from(
+      scanned.entries()
+    ).map(([code, method]) => ({
+      code: code,
+      method: method
+    }));
+
+    window.opener.postMessage({
+      type: 'MICU2_RN5_SCAN',
+      session: session,
+      codes: codes
+    }, target.origin);
+
+    message(
+      'ส่งรหัส ' + codes.length +
+      ' รายการแล้ว กรุณากลับไปตรวจสอบหน้า RN5'
+    );
+
+  } catch (error) {
+    message(
+      'ส่งข้อมูลไม่สำเร็จ: ' + error.message,
+      true
+    );
+  }
 }
   async function copyCodes() {
     if (!scanned.size) {
