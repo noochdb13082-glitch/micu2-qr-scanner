@@ -169,22 +169,11 @@
   ✓ ส่งผลตรวจกลับ RN5
 </button>
 
-<a href="https://script.google.com/macros/s/AKfycbw0M0y8Vne76ei9Rpa1_prx4e5KvSh2JDT2-fv_frnFckv_UXZhTecg3zP3z8FNwqzZ/exec?rn=RN5"
-   target="_self"
-   onclick="return confirm('ต้องการเปิดหน้า RN5 ใหม่หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะไม่ถูกนำไปด้วย');"
-   style="display:block;
-          width:100%;
-          padding:15px;
-          margin:6px 0;
-          border-radius:12px;
-          background:#d97706;
-          color:white;
-          font-size:17px;
-          font-weight:bold;
-          text-align:center;
-          text-decoration:none;">
+<button type="button"
+        style="background:#d97706;"
+        onclick="backToRN5()">
   ⬅ กลับหน้าตรวจ RN5
-</a>
+</button>
 
 <button onclick="copyCodes()">
   📋 คัดลอกรหัสทั้งหมด
@@ -362,7 +351,44 @@
 
     $('manual').focus();
   }
+
+  let rn5AckTimer = null;
+let rn5WaitingAck = false;
+let rn5AckReceived = false;
+
+window.addEventListener('message', event => {
+  const params = new URLSearchParams(
+    window.location.hash.slice(1)
+  );
+
+  if (event.origin !== params.get('origin')) return;
+  if (event.source !== window.opener) return;
+
+  const data = event.data;
+
+  if (!data ||
+      data.type !== 'MICU2_RN5_ACK' ||
+      data.session !== params.get('session') ||
+      !rn5WaitingAck) {
+    return;
+  }
+
+  clearTimeout(rn5AckTimer);
+  rn5WaitingAck = false;
+  rn5AckReceived = true;
+
+  message(
+    'RN5 ยืนยันรับผลแล้ว เพิ่มใหม่ ' +
+    data.added + ' เครื่อง | ไม่เพิ่ม ' +
+    data.skipped + ' รหัส | รวมทั้งหมด ' +
+    data.total + ' เครื่อง',
+    data.skipped > 0
+  );
+});
+
 async function sendToRN5() {
+  if (rn5WaitingAck) return;
+
   if (!scanned.size) {
     message('ยังไม่มีรหัสที่ตรวจพบ', true);
     return;
@@ -384,6 +410,9 @@ async function sendToRN5() {
     return;
   }
 
+  rn5WaitingAck = true;
+  rn5AckReceived = false;
+
   try {
     const target = new URL(origin);
 
@@ -394,7 +423,11 @@ async function sendToRN5() {
 
     if (running) {
       await stopCamera();
-      if (running) return;
+
+      if (running) {
+        rn5WaitingAck = false;
+        return;
+      }
     }
 
     const codes = Array.from(
@@ -404,18 +437,34 @@ async function sendToRN5() {
       method: method
     }));
 
+    message(
+      'กำลังส่ง ' + codes.length +
+      ' รหัส กรุณารอ RN5 ยืนยันการรับข้อมูล...'
+    );
+
+    clearTimeout(rn5AckTimer);
+
+    rn5AckTimer = setTimeout(() => {
+      rn5WaitingAck = false;
+
+      message(
+        'ยังไม่ได้รับการยืนยันจาก RN5 ' +
+        'กรุณาตรวจสอบแท็บ RN5 เดิม ' +
+        'อย่าเพิ่งล้างรายการสแกน',
+        true
+      );
+    }, 120000);
+
     window.opener.postMessage({
       type: 'MICU2_RN5_SCAN',
       session: session,
       codes: codes
     }, target.origin);
 
-    message(
-      'ส่งรหัส ' + codes.length +
-      ' รายการแล้ว กรุณากลับไปตรวจสอบหน้า RN5'
-    );
-
   } catch (error) {
+    clearTimeout(rn5AckTimer);
+    rn5WaitingAck = false;
+
     message(
       'ส่งข้อมูลไม่สำเร็จ: ' + error.message,
       true
@@ -424,13 +473,20 @@ async function sendToRN5() {
 }
 
 async function backToRN5() {
-
-  if (scanned.size > 0) {
-    const ok = confirm(
-      'การเปิดหน้า RN5 ใหม่จะไม่นำข้อมูลที่ยังไม่ได้บันทึกไปด้วย ต้องการกลับหรือไม่?'
+  if (rn5WaitingAck) {
+    message(
+      'กรุณารอ RN5 ยืนยันการรับข้อมูลก่อน',
+      true
     );
+    return;
+  }
 
-    if (!ok) return;
+  if (scanned.size > 0 && !rn5AckReceived) {
+    message(
+      'กรุณาส่งผลตรวจและรอการยืนยันก่อนกลับ',
+      true
+    );
+    return;
   }
 
   if (running) {
@@ -438,9 +494,21 @@ async function backToRN5() {
     if (running) return;
   }
 
-  window.location.href =
-    'https://script.google.com/macros/s/AKfycbw0M0y8Vne76ei9Rpa1_prx4e5KvSh2JDT2-fv_frnFckv_UXZhTecg3zP3z8FNwqzZ/exec?rn=RN5';
+  if (window.opener && !window.opener.closed) {
+    message(
+      'กรุณาสลับกลับไปยังแท็บ RN5 เดิม ' +
+      'เพื่อรักษาข้อมูลที่ตรวจไว้'
+    );
 
+    try {
+      window.opener.focus();
+    } catch (error) {}
+  } else {
+    message(
+      'กรุณาสลับกลับแท็บ RN5 เดิมด้วยตนเอง',
+      true
+    );
+  }
 }
 
 async function copyCodes() {
