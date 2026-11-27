@@ -472,20 +472,14 @@ async function sendToRN5() {
   }
 }
 
-async function backToRN5() {
+async function async function backToRN5() {
   if (rn5WaitingAck) {
-    message(
-      'กรุณารอ RN5 ยืนยันการรับข้อมูลก่อน',
-      true
-    );
+    message('กรุณารอ RN5 ยืนยันการรับข้อมูลก่อน', true);
     return;
   }
 
   if (scanned.size > 0 && !rn5AckReceived) {
-    message(
-      'กรุณาส่งผลตรวจและรอการยืนยันก่อนกลับ',
-      true
-    );
+    message('กรุณาส่งผลตรวจและรอการยืนยันก่อนกลับ', true);
     return;
   }
 
@@ -495,22 +489,16 @@ async function backToRN5() {
   }
 
   if (window.opener && !window.opener.closed) {
-    message(
-      'กรุณาสลับกลับไปยังแท็บ RN5 เดิม ' +
-      'เพื่อรักษาข้อมูลที่ตรวจไว้'
-    );
-
     try {
       window.opener.focus();
+      window.close();
     } catch (error) {}
-  } else {
-    message(
-      'กรุณาสลับกลับแท็บ RN5 เดิมด้วยตนเอง',
-      true
-    );
   }
-}
 
+  message(
+    'กรุณากดปุ่มสลับแท็บด้านล่าง แล้วเลือก RN5 เดิม'
+  );
+}
 async function copyCodes() {
     if (!scanned.size) {
       message('ยังไม่มีรหัสที่ตรวจพบ', true);
