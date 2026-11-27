@@ -409,15 +409,11 @@ async function sendToRN5() {
       true
     );
   }
-}
- async function backToRN5() {
-
-  const appURL =
-    'https://script.google.com/macros/s/AKfycbw0M0y8Vne76ei9Rpa1_prx4e5KvSh2JDT2-fv_frnFckv_UXZhTecg3zP3z8FNwqzZ/exec';
+async function backToRN5() {
 
   if (scanned.size > 0) {
     const ok = confirm(
-      'กรุณาตรวจสอบว่าส่งผลตรวจกลับ RN5 แล้ว ต้องการกลับหรือไม่?'
+      'การเปิดหน้า RN5 ใหม่จะไม่นำข้อมูลที่ยังไม่ได้บันทึกไปด้วย ต้องการกลับหรือไม่?'
     );
 
     if (!ok) return;
@@ -428,31 +424,12 @@ async function sendToRN5() {
     if (running) return;
   }
 
-  try {
-    if (window.opener && !window.opener.closed) {
+  window.location.href =
+    'https://script.google.com/macros/s/AKfycbw0M0y8Vne76ei9Rpa1_prx4e5KvSh2JDT2-fv_frnFckv_UXZhTecg3zP3z8FNwqzZ/exec?rn=RN5';
 
-      window.opener.focus();
-      window.close();
-
-      message(
-        'หากหน้าต่างไม่ปิด กรุณาสลับกลับแท็บ RN5 เดิม'
-      );
-
-      return;
-    }
-  } catch (error) {
-    console.warn(error);
-  }
-
-  const ok = confirm(
-    'ไม่สามารถกลับแท็บ RN5 เดิมได้ ต้องการเปิดระบบ MICU2 ใหม่หรือไม่? ข้อมูลที่ยังไม่ได้บันทึกจะไม่ถูกนำไปหน้าใหม่'
-  );
-
-  if (!ok) return;
-
-  window.location.href = appURL + '?rn=RN5';
 }
-} async function copyCodes() {
+
+async function copyCodes() {
     if (!scanned.size) {
       message('ยังไม่มีรหัสที่ตรวจพบ', true);
       return;
