@@ -67,6 +67,9 @@
     .reset {
       background: #64748b;
     }
+    .send {
+  background: #16a34a;
+}
 
     #reader {
       width: 100%;
@@ -161,6 +164,10 @@
   <h3>รายการรหัสที่ตรวจพบ</h3>
 
   <div id="found"></div>
+  <button id="send" class="send"
+        onclick="sendToRN5()" disabled>
+  ✓ ส่งผลตรวจกลับ RN5
+</button>
 
   <button onclick="copyCodes()">
     📋 คัดลอกรหัสทั้งหมด
@@ -337,7 +344,14 @@
 
     $('manual').focus();
   }
+async function sendToRN5() {
+  if (!scanned.size) {
+    message('ยังไม่มีรหัสที่ตรวจพบ', true);
+    return;
+  }
 
+  message('รอเชื่อมต่อระบบรับข้อมูล RN5');
+}
   async function copyCodes() {
     if (!scanned.size) {
       message('ยังไม่มีรหัสที่ตรวจพบ', true);
