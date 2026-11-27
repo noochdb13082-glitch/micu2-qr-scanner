@@ -1,0 +1,385 @@
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1">
+  <title>MICU2 QR Scanner</title>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #eef5fa;
+      font-family: Arial, sans-serif;
+      color: #12354d;
+    }
+
+    .card {
+      max-width: 550px;
+      margin: auto;
+      padding: 20px;
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 4px 20px #00000012;
+    }
+
+    h1 {
+      font-size: 25px;
+      text-align: center;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      margin: 6px 0;
+      border: 0;
+      border-radius: 12px;
+      background: #12699f;
+      color: white;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+    }
+
+    .stop {
+      background: #dc2626;
+    }
+
+    .reset {
+      background: #64748b;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+      margin-top: 12px;
+    }
+
+    #status {
+      padding: 12px;
+      background: #eff6ff;
+      border-radius: 10px;
+      margin: 12px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .count {
+      background: #dcfce7;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      color: #15803d;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .found {
+      background: #f0fdf4;
+      color: #15803d;
+      border-left: 4px solid #16a34a;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      overflow-wrap: anywhere;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #b8cddd;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+
+    footer {
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <h1>📷 MICU2 QR Scanner</h1>
+  <div class="subtitle">
+    RN5 — ระบบตรวจนับอุปกรณ์
+  </div>
+
+  <div class="count">
+    สแกนแล้ว <span id="count">0</span> รหัส
+  </div>
+
+  <button id="start" onclick="startCamera()">
+    📷 เปิดกล้องสแกน QR Code
+  </button>
+
+  <button id="stop" class="stop"
+          onclick="stopCamera()" disabled>
+    ■ ปิดกล้อง
+  </button>
+
+  <div id="reader"></div>
+
+  <div id="status" role="status">
+    พร้อมสแกน QR Code
+  </div>
+
+  <label>กรณีสแกนไม่ได้ ให้กรอกรหัส</label>
+
+  <input id="manual"
+         placeholder="เช่น MICU2-RN5-001-01"
+         autocomplete="off">
+
+  <button onclick="addManual()">
+    ✓ ยืนยันรหัสอุปกรณ์
+  </button>
+
+  <h3>รายการรหัสที่ตรวจพบ</h3>
+
+  <div id="found"></div>
+
+  <button onclick="copyCodes()">
+    📋 คัดลอกรหัสทั้งหมด
+  </button>
+
+  <button class="reset" onclick="resetScan()">
+    ↻ เริ่มตรวจนับใหม่
+  </button>
+
+  <footer>
+    MICU2 Check System | RN5 QR Scanner
+  </footer>
+
+</div>
+
+<script>
+  const scanned = new Map();
+
+  let scanner = null;
+  let running = false;
+  let lastCode = '';
+  let lastTime = 0;
+
+  const $ = id => document.getElementById(id);
+
+  function message(text, error = false) {
+    $('status').textContent = text;
+    $('status').style.color =
+      error ? '#dc2626' : '#15803d';
+  }
+
+  function render() {
+    $('count').textContent = scanned.size;
+    $('found').replaceChildren();
+
+    scanned.forEach((method, code) => {
+      const div = document.createElement('div');
+      div.className = 'found';
+      div.textContent = '✓ ' + code + ' — ' + method;
+      $('found').appendChild(div);
+    });
+  }
+
+  function addCode(value, method) {
+    const code = String(value || '')
+      .trim()
+      .toUpperCase();
+
+    if (!code) {
+      message('กรุณากรอกรหัสอุปกรณ์', true);
+      return false;
+    }
+
+    if (scanned.has(code)) {
+      message(code + ' ตรวจนับแล้ว ไม่นับซ้ำ', true);
+      return false;
+    }
+
+    scanned.set(code, method);
+    render();
+
+    message('ตรวจพบ ' + code + ' สำเร็จ');
+
+    if (navigator.vibrate) {
+      navigator.vibrate(150);
+    }
+
+    return true;
+  }
+
+  function onScan(code) {
+    const now = Date.now();
+
+    if (code === lastCode &&
+        now - lastTime < 2500) {
+      return;
+    }
+
+    lastCode = code;
+    lastTime = now;
+
+    addCode(code, 'QR Code');
+  }
+
+  async function startCamera() {
+    if (running || scanner) return;
+
+    if (typeof Html5Qrcode === 'undefined') {
+      message('โหลดระบบสแกนไม่สำเร็จ', true);
+      return;
+    }
+
+    $('start').disabled = true;
+
+    message('กำลังเปิดกล้อง...');
+
+    try {
+      scanner = new Html5Qrcode('reader', {
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.QR_CODE
+        ]
+      });
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: function(width, height) {
+            const size = Math.floor(
+              Math.min(width, height) * 0.7
+            );
+
+            return {
+              width: size,
+              height: size
+            };
+          }
+        },
+        onScan,
+        () => {}
+      );
+
+      running = true;
+      $('stop').disabled = false;
+
+      message('นำกล้องส่อง QR Code ของอุปกรณ์');
+
+    } catch (error) {
+      if (scanner) {
+        try {
+          if (scanner.isScanning) {
+            await scanner.stop();
+          }
+          scanner.clear();
+        } catch (e) {}
+      }
+
+      scanner = null;
+      running = false;
+
+      $('start').disabled = false;
+      $('stop').disabled = true;
+
+      message('เปิดกล้องไม่ได้: ' + error, true);
+    }
+  }
+
+  async function stopCamera() {
+    if (!scanner || !running) return;
+
+    $('stop').disabled = true;
+
+    try {
+      await scanner.stop();
+      scanner.clear();
+
+      scanner = null;
+      running = false;
+
+      $('start').disabled = false;
+
+      message('ปิดกล้องแล้ว');
+
+    } catch (error) {
+      $('stop').disabled = false;
+      message('ปิดกล้องไม่สำเร็จ: ' + error, true);
+    }
+  }
+
+  function addManual() {
+    if (addCode($('manual').value, 'กรอกรหัส')) {
+      $('manual').value = '';
+    }
+
+    $('manual').focus();
+  }
+
+  async function copyCodes() {
+    if (!scanned.size) {
+      message('ยังไม่มีรหัสที่ตรวจพบ', true);
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(
+        Array.from(scanned.keys()).join('\n')
+      );
+
+      message('คัดลอกรหัสทั้งหมดสำเร็จ');
+
+    } catch (error) {
+      message('คัดลอกไม่สำเร็จ', true);
+    }
+  }
+
+  function resetScan() {
+    if (!confirm('ต้องการล้างรายการตรวจนับทั้งหมดหรือไม่?')) {
+      return;
+    }
+
+    scanned.clear();
+
+    lastCode = '';
+    lastTime = 0;
+
+    $('manual').value = '';
+
+    render();
+
+    message('พร้อมเริ่มตรวจนับใหม่');
+  }
+
+  $('manual').addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addManual();
+    }
+  });
+</script>
+
+</body>
+</html>
