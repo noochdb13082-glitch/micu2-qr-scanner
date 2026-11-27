@@ -169,9 +169,14 @@
   ✓ ส่งผลตรวจกลับ RN5
 </button>
 
-  <button onclick="copyCodes()">
-    📋 คัดลอกรหัสทั้งหมด
-  </button>
+<button style="background:#d97706;"
+        onclick="backToRN5()">
+  ⬅ กลับหน้าตรวจ RN5
+</button>
+
+<button onclick="copyCodes()">
+  📋 คัดลอกรหัสทั้งหมด
+</button>
 
   <button class="reset" onclick="resetScan()">
     ↻ เริ่มตรวจนับใหม่
@@ -405,7 +410,40 @@ async function sendToRN5() {
     );
   }
 }
-  async function copyCodes() {
+ async function backToRN5() {
+
+  if (scanned.size > 0) {
+    const ok = confirm(
+      'หากยังไม่ได้ส่งผลตรวจ ข้อมูลที่สแกนไว้อาจสูญหาย ต้องการกลับหน้า RN5 หรือไม่?'
+    );
+
+    if (!ok) return;
+  }
+
+  if (running) {
+    await stopCamera();
+
+    if (running) return;
+  }
+
+  if (window.opener && !window.opener.closed) {
+
+    window.opener.focus();
+    window.close();
+
+    message(
+      'หากหน้าต่างไม่ปิด กรุณาสลับกลับไปยังแท็บ RN5 เดิม'
+    );
+
+  } else {
+
+    message(
+      'กรุณาสลับกลับไปยังแท็บ RN5 เดิม',
+      true
+    );
+
+  }
+} async function copyCodes() {
     if (!scanned.size) {
       message('ยังไม่มีรหัสที่ตรวจพบ', true);
       return;
